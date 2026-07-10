@@ -1,0 +1,406 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { format } from "date-fns";
+import { 
+    Search, MessageSquare, Phone, Globe, Smartphone, User, 
+    Clock, CheckCircle, AlertCircle, Send, Paperclip, MoreVertical,
+    ShieldAlert, Hash
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+export default function UnifiedInbox({ user }: { user: any }) {
+    const [conversations, setConversations] = useState<any[]>([]);
+    const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
+    const [messages, setMessages] = useState<any[]>([]);
+    const [newMessage, setNewMessage] = useState("");
+    const [customerInfo, setCustomerInfo] = useState<any>(null);
+    const [orderInfo, setOrderInfo] = useState<any>(null);
+
+    // Fetch conversations
+    useEffect(() => {
+        const fetchConversations = async () => {
+            const { data, error } = await supabase
+                .from('conversations')
+                .select('*')
+                .order('last_message_at', { ascending: false });
+                
+            if (error) {
+                console.error("Fetch conversations error:", error);
+                return;
+            }
+
+            if (data) {
+                const customerIds = data.map(c => c.customer_id).filter(Boolean);
+                let profiles = [];
+                if (customerIds.length > 0) {
+                    const { data: profs } = await supabase.from('profiles').select('id, full_name, phone, email').in('id', customerIds);
+                    if (profs) profiles = profs;
+                }
+                
+                const convsWithCustomers = data.map(c => ({
+                    ...c,
+                    customer: c.customer_id ? profiles.find(p => p.id === c.customer_id) : null
+                }));
+                
+                setConversations(convsWithCustomers);
+            }
+        };
+        fetchConversations();
+
+        const channel = supabase.channel('staff_inbox')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, fetchConversations)
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
+    // Fetch messages for selected conversation
+    useEffect(() => {
+        if (!selectedConvId) return;
+
+        const fetchMessagesAndInfo = async () => {
+            const { data: msgs } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('conversation_id', selectedConvId)
+                .order('created_at', { ascending: true });
+            if (msgs) setMessages(msgs);
+
+            const conv = conversations.find(c => c.id === selectedConvId);
+            if (conv) {
+                if (conv.customer) setCustomerInfo(conv.customer);
+                if (conv.order_id) {
+                    const { data: ord } = await supabase
+                        .from('orders')
+                        .select('*')
+                        .eq('id', conv.order_id)
+                        .single();
+                    if (ord) setOrderInfo(ord);
+                } else {
+                    setOrderInfo(null);
+                }
+            }
+        };
+
+        fetchMessagesAndInfo();
+
+        const channel = supabase.channel(`msgs_${selectedConvId}`)
+            .on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'messages',
+                filter: `conversation_id=eq.${selectedConvId}`
+            }, (payload) => {
+                setMessages(prev => [...prev, payload.new]);
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [selectedConvId, conversations]);
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !selectedConvId) return;
+
+        const msg = newMessage.trim();
+        setNewMessage("");
+
+        const conv = conversations.find(c => c.id === selectedConvId);
+
+        if (conv?.channel === 'whatsapp') {
+            let phone = conv.subject?.replace("WhatsApp: ", "");
+            if (!phone) {
+                alert("Cannot find WhatsApp phone number");
+                return;
+            }
+
+            try {
+                const response = await fetch("/api/whatsapp/send", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to_number: phone,
+                        message: msg,
+                        conversation_id: selectedConvId,
+                        staff_id: user.id
+                    })
+                });
+
+                if (!response.ok) {
+                    console.error("WhatsApp Send Error:", await response.json());
+                    alert("Failed to send WhatsApp message. Check API credentials.");
+                }
+            } catch (err) {
+                console.error("Network error:", err);
+                alert("Network error sending WhatsApp message");
+            }
+        } else {
+            await supabase.from('messages').insert({
+                conversation_id: selectedConvId,
+                sender_type: 'staff',
+                sender_id: user.id,
+                body: msg
+            });
+
+            await supabase.from('conversations').update({
+                last_message: msg,
+                last_message_at: new Date().toISOString(),
+                status: 'open'
+            }).eq('id', selectedConvId);
+        }
+    };
+
+    const getChannelIcon = (channel: string) => {
+        switch(channel) {
+            case 'whatsapp': return <Phone size={14} className="text-green-500" />;
+            case 'telegram': return <MessageSquare size={14} className="text-blue-500" />;
+            case 'app': return <Smartphone size={14} className="text-purple-500" />;
+            default: return <Globe size={14} className="text-slate-500" />;
+        }
+    };
+
+    const selectedConv = conversations.find(c => c.id === selectedConvId);
+
+    return (
+        <div className="flex h-screen bg-white">
+            
+            {/* Left Sidebar - Conversations */}
+            <div className="w-80 border-r border-slate-200 flex flex-col bg-slate-50/50">
+                <div className="p-4 border-b border-slate-200 bg-white">
+                    <h2 className="font-bold text-lg text-slate-900 flex items-center gap-2 mb-4">
+                        <MessageSquare size={20} className="text-[#2b3890]" />
+                        Inbox
+                    </h2>
+                    <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input 
+                            type="text" 
+                            placeholder="Search chats..." 
+                            className="w-full pl-9 pr-4 py-2 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-[#2b3890]/20"
+                        />
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                    {conversations.map(conv => (
+                        <div 
+                            key={conv.id}
+                            onClick={() => setSelectedConvId(conv.id)}
+                            className={cn(
+                                "p-4 border-b border-slate-100 cursor-pointer transition-colors relative",
+                                selectedConvId === conv.id ? "bg-blue-50/50" : "hover:bg-slate-100/50"
+                            )}
+                        >
+                            {selectedConvId === conv.id && (
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#2b3890]" />
+                            )}
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                    {getChannelIcon(conv.channel)}
+                                    <span className="font-semibold text-sm text-slate-900 truncate">
+                                        {conv.customer?.full_name || conv.customer?.name || "Guest User"}
+                                    </span>
+                                </div>
+                                <span className="text-xs text-slate-400">
+                                    {conv.last_message_at ? format(new Date(conv.last_message_at), 'HH:mm') : ''}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm text-slate-500 truncate max-w-[200px]">
+                                    {conv.last_message || conv.subject}
+                                </p>
+                                {conv.status === 'open' && (
+                                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Middle - Chat Area */}
+            <div className="flex-1 flex flex-col bg-white">
+                {selectedConvId ? (
+                    <>
+                        <div className="h-16 border-b border-slate-200 px-6 flex items-center justify-between bg-white shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
+                                    {selectedConv?.customer?.full_name?.charAt(0) || "G"}
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-900">
+                                        {selectedConv?.customer?.full_name || "Guest User"}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 capitalize flex items-center gap-1">
+                                        {getChannelIcon(selectedConv?.channel)}
+                                        {selectedConv?.channel} Chat
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button className="px-3 py-1.5 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">
+                                    Resolve
+                                </button>
+                                <button className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
+                                    <MoreVertical size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+                            {messages.map((msg, idx) => {
+                                const isStaff = msg.sender_type === 'staff';
+                                const isSystem = msg.sender_type === 'system';
+
+                                if (isSystem) {
+                                    return (
+                                        <div key={idx} className="flex justify-center my-4">
+                                            <div className="bg-slate-200/50 text-slate-600 text-xs px-4 py-2 rounded-full max-w-[80%] text-center whitespace-pre-wrap">
+                                                {msg.body}
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div key={idx} className={`flex ${isStaff ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`
+                                            max-w-[70%] px-4 py-3 text-sm shadow-sm
+                                            ${isStaff 
+                                                ? 'bg-[#2b3890] text-white rounded-2xl rounded-tr-sm' 
+                                                : 'bg-white text-slate-700 border border-slate-100 rounded-2xl rounded-tl-sm'}
+                                        `}>
+                                            <div className="whitespace-pre-wrap">{msg.body}</div>
+                                            <div className={`text-[10px] mt-1 ${isStaff ? 'text-blue-200' : 'text-slate-400'} text-right`}>
+                                                {format(new Date(msg.created_at), 'HH:mm')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="p-4 bg-white border-t border-slate-200">
+                            <form onSubmit={handleSendMessage} className="flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1 focus-within:border-[#2b3890] focus-within:ring-1 focus-within:ring-[#2b3890]">
+                                <button type="button" className="p-3 text-slate-400 hover:text-slate-600 transition-colors">
+                                    <Paperclip size={20} />
+                                </button>
+                                <textarea
+                                    value={newMessage}
+                                    onChange={e => setNewMessage(e.target.value)}
+                                    placeholder="Type your reply..."
+                                    className="flex-1 bg-transparent border-none py-3 px-2 resize-none max-h-[120px] focus:ring-0 text-sm"
+                                    rows={1}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSendMessage(e);
+                                        }
+                                    }}
+                                />
+                                <button 
+                                    type="submit"
+                                    disabled={!newMessage.trim()}
+                                    className="m-1 w-10 h-10 bg-[#2b3890] disabled:bg-slate-300 text-white rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                                >
+                                    <Send size={18} className="ml-0.5" />
+                                </button>
+                            </form>
+                        </div>
+                    </>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                        <MessageSquare size={48} className="mb-4 opacity-20" />
+                        <p>Select a conversation to start chatting</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Right Sidebar - Info */}
+            <div className="w-80 border-l border-slate-200 bg-slate-50/30 overflow-y-auto">
+                {selectedConvId ? (
+                    <div className="p-6">
+                        {/* Customer Profile */}
+                        <div className="text-center mb-8">
+                            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold text-2xl mx-auto mb-3 shadow-inner">
+                                {customerInfo?.full_name?.charAt(0) || "G"}
+                            </div>
+                            <h3 className="font-bold text-lg text-slate-900">{customerInfo?.full_name || "Guest User"}</h3>
+                            <p className="text-sm text-slate-500">{customerInfo?.phone || customerInfo?.email || "No contact info"}</p>
+                        </div>
+
+                        {/* Order Details */}
+                        {orderInfo && (
+                            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm mb-6">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+                                    <Hash size={14} /> Order Details
+                                </h4>
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Order ID</span>
+                                        <span className="font-mono font-medium">{orderInfo.order_number}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Product</span>
+                                        <span className="font-medium text-right max-w-[140px] truncate">{orderInfo.package_name || orderInfo.catalogue_name}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Amount</span>
+                                        <span className="font-bold text-green-600">${orderInfo.amount_paid}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                                        <span className="text-slate-500">Status</span>
+                                        <span className={cn(
+                                            "px-2 py-1 rounded-md text-[10px] font-bold uppercase",
+                                            orderInfo.payment_status === 'PAID' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                                        )}>
+                                            {orderInfo.payment_status}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Order Specifics (Player ID, Password) */}
+                        {orderInfo && orderInfo.player_id && (
+                            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+                                    <ShieldAlert size={14} /> Game Info
+                                </h4>
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-slate-500 text-xs">Player ID / Email</span>
+                                        <span className="font-mono bg-slate-50 p-2 rounded-lg border border-slate-100">{orderInfo.player_id}</span>
+                                    </div>
+                                    {orderInfo.game_password && (
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-slate-500 text-xs">Password</span>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="password" 
+                                                    value={orderInfo.game_password} 
+                                                    readOnly 
+                                                    className="font-mono bg-slate-50 p-2 rounded-lg border border-slate-100 w-full focus:outline-none"
+                                                />
+                                                {/* Password visibility toggle could go here */}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                        No details to display
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
