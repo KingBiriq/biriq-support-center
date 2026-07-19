@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // 1. Conversation Access & 24h Window Validation
         const { data: conversation, error: convErr } = await sAdmin
             .from("support_conversations")
-            .select("support_contact_id, channel_type, status, customer_service_window_expires_at, support_contacts(primary_phone)")
+            .select("support_contact_id, channel_type, status, customer_service_window_expires_at, assigned_agent_id, support_contacts(primary_phone)")
             .eq("id", conversationId)
             .single();
 

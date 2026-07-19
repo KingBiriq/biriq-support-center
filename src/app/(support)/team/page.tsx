@@ -359,7 +359,7 @@ export default function TeamPage() {
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <div>
                 <h3 className="font-bold text-lg text-slate-900">Edit Staff Member</h3>
-                <p className="text-sm text-slate-500">Update {editingStaff.full_name}'s details.</p>
+                <p className="text-sm text-slate-500">Update {editingStaff.full_name}&apos;s details.</p>
               </div>
               <button onClick={() => setEditingStaff(null)} className="text-slate-400 hover:text-slate-600">
                  <X size={20} />

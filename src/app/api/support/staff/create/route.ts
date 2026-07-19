@@ -15,7 +15,10 @@ export async function POST(req: NextRequest) {
             .eq("id", session.staffId)
             .single();
 
-        if (staffErr || (currentStaff.support_roles?.name !== 'super_admin' && currentStaff.support_roles?.name !== 'admin')) {
+        const rolesData = currentStaff?.support_roles as any;
+        const roleName = Array.isArray(rolesData) ? rolesData[0]?.name : rolesData?.name;
+
+        if (staffErr || !currentStaff || (roleName !== 'super_admin' && roleName !== 'admin')) {
             return NextResponse.json({ error: "Only admins can create staff" }, { status: 403 });
         }
 
