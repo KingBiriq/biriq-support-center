@@ -116,8 +116,8 @@ export default function ConversationList({
             const isActive = activeId === c.id;
             const isUnread = c.unread_count > 0;
             const isWhatsAppConv = (c.channel_type === 'website' && c.subject?.includes('WhatsApp')) || c.channel_type === 'whatsapp';
-            const unreadColorClass = isWhatsAppConv ? 'text-[#25D366]' : 'text-[#2b3890]';
-            const unreadBgClass = isWhatsAppConv ? 'bg-[#25D366]' : 'bg-[#2b3890]';
+            const unreadColorClass = 'text-[#2b3890]';
+            const unreadBgClass = 'bg-[#2b3890]';
             
             return (
               <div 
