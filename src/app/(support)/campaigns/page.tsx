@@ -4,7 +4,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { 
   Send, RefreshCw, Users, AlertCircle, Play, 
-  CheckCircle2, LayoutTemplate, HelpCircle 
+  CheckCircle2, LayoutTemplate, HelpCircle, Upload 
 } from "lucide-react";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -30,6 +30,32 @@ export default function CampaignsPage() {
 
   // Find currently selected template details
   const selectedTemplate = templates?.find((t: any) => t.id === selectedTemplateId);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      // Extract anything that looks like a phone number (e.g. 7 to 15 digits)
+      const matches = text.match(/\+?[0-9]{7,15}/g) || [];
+      if (matches.length === 0) {
+        alert("Wax nambaro ah lagama helin faylkan. Fadlan hubi inuu faylku yahay CSV, VCF ama TXT.");
+        return;
+      }
+
+      // Format and deduplicate
+      const uniqueNumbers = Array.from(new Set(matches.map(num => num.trim())));
+      const currentList = manualNumbers ? manualNumbers + "\n" : "";
+      setManualNumbers(currentList + uniqueNumbers.join("\n"));
+      alert(`Si guul leh ayaa loo soo saaray ${uniqueNumbers.length} nambaro ah faylka!`);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   const handleStartCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,9 +198,21 @@ export default function CampaignsPage() {
 
               {/* Step 3: Manual Input Textarea */}
               <div>
-                <label className="block text-sm font-semibold text-slate-900 mb-2">
-                  3. Nambaro Gacanta lagu shubayo (Manual Input) - Ikhtiyaari
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-slate-900">
+                    3. Nambaro Gacanta lagu shubayo (Manual Input) - Ikhtiyaari
+                  </label>
+                  <label className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded cursor-pointer transition-colors">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload CSV / VCF / TXT</span>
+                    <input
+                      type="file"
+                      accept=".csv,.vcf,.txt"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
                 <textarea
                   value={manualNumbers}
                   onChange={(e) => setManualNumbers(e.target.value)}
