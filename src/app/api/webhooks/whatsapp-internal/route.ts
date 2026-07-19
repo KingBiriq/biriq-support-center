@@ -145,19 +145,42 @@ async function processWhatsAppPayload(payload: any, sAdmin: any, eventId: string
             }
 
             if (!supportContact) {
-                const { data: newContact, error: insertContactErr } = await sAdmin.from("support_contacts")
-                    .insert({
-                        primary_phone: fromNumber,
-                        display_name: contactName,
-                        updated_at: new Date().toISOString()
-                    })
-                    .select("id")
-                    .single();
+                // Check if there is an active website conversation where subject is "WhatsApp: " + fromNumber
+                const { data: websiteConv } = await sAdmin.from("support_conversations")
+                    .select("support_contact_id")
+                    .eq("channel_type", "website")
+                    .eq("subject", `WhatsApp: ${fromNumber}`)
+                    .eq("status", "open")
+                    .maybeSingle();
 
-                if (insertContactErr) {
-                    throw new Error(`Contact insert failed: ${insertContactErr.message}`);
+                if (websiteConv) {
+                    const { error: updateContactErr } = await sAdmin.from("support_contacts")
+                        .update({
+                            primary_phone: fromNumber,
+                            display_name: contactName,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq("id", websiteConv.support_contact_id);
+
+                    if (updateContactErr) {
+                        console.error(`Warning: Contact update from website guest failed: ${updateContactErr.message}`);
+                    }
+                    supportContact = { id: websiteConv.support_contact_id };
+                } else {
+                    const { data: newContact, error: insertContactErr } = await sAdmin.from("support_contacts")
+                        .insert({
+                            primary_phone: fromNumber,
+                            display_name: contactName,
+                            updated_at: new Date().toISOString()
+                        })
+                        .select("id")
+                        .single();
+
+                    if (insertContactErr) {
+                        throw new Error(`Contact insert failed: ${insertContactErr.message}`);
+                    }
+                    supportContact = newContact;
                 }
-                supportContact = newContact;
             } else {
                 // Update display name if it's currently a default
                 const { error: updateContactErr } = await sAdmin.from("support_contacts")
@@ -174,7 +197,7 @@ async function processWhatsAppPayload(payload: any, sAdmin: any, eventId: string
 
             // 2. Sync Conversation
             const { data: conversation, error: convSelectErr } = await sAdmin.from("support_conversations")
-                .select("id, unread_count")
+                .select("id, unread_count, channel_type")
                 .eq("support_contact_id", supportContact.id)
                 .eq("status", "open")
                 .maybeSingle();
@@ -184,6 +207,13 @@ async function processWhatsAppPayload(payload: any, sAdmin: any, eventId: string
             }
 
             let convId = conversation?.id;
+
+            if (conversation && conversation.channel_type === 'website') {
+                // Update website conversation to WhatsApp to merge them
+                await sAdmin.from("support_conversations")
+                    .update({ channel_type: "whatsapp" })
+                    .eq("id", conversation.id);
+            }
 
             if (!convId) {
                 const { data: newConv, error: convInsertErr } = await sAdmin.from("support_conversations").insert({
