@@ -40,7 +40,7 @@ export function StatusBadge({ status, size = "sm", className }: StatusBadgeProps
 
   return (
     <span className={clsx("inline-flex items-center border", colorClass, sizeClasses[size], className)}>
-      {status}
+      {status.toLowerCase() === "resolved" ? "solved" : status}
     </span>
   );
 }

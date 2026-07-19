@@ -82,7 +82,8 @@ export default function ConversationList({
             <option value="open">Open</option>
             <option value="waiting">Waiting</option>
             <option value="pending">Pending</option>
-            <option value="resolved">Resolved</option>
+            <option value="resolved">Solved</option>
+            <option value="snoozed">Snoozed</option>
             <option value="closed">Closed</option>
           </select>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">

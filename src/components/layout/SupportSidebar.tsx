@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { 
   LayoutDashboard, Inbox, Users, ShoppingCart, CreditCard, 
   ShieldUser, BarChart2, Radio, Zap, LayoutTemplate, 
-  Bell, Settings, ScrollText, LogOut, ChevronLeft, ChevronRight, Menu 
+  Bell, Settings, ScrollText, LogOut, ChevronLeft, ChevronRight, Menu, Send
 } from "lucide-react";
 
 interface SupportSidebarProps {
@@ -26,6 +26,7 @@ const NAV_ITEMS = [
   { name: "Channels", href: "/channels", icon: Radio },
   { name: "Quick Replies", href: "/quick-replies", icon: Zap },
   { name: "Templates", href: "/templates", icon: LayoutTemplate },
+  { name: "Bulk Send", href: "/campaigns", icon: Send },
   { name: "Notifications", href: "/notifications", icon: Bell },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Audit Logs", href: "/audit-logs", icon: ScrollText },

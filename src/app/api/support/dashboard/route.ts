@@ -30,6 +30,7 @@ export async function GET() {
       { count: unreadCount },
       { count: resolvedCount },
       { count: closedCount },
+      { count: snoozedCount },
       { count: whatsappCount },
       { count: websiteCount }
     ] = await Promise.all([
@@ -39,6 +40,7 @@ export async function GET() {
       s.from('support_conversations').select('*', { count: 'exact', head: true }).gt('unread_count', 0),
       s.from('support_conversations').select('*', { count: 'exact', head: true }).eq('status', 'resolved'),
       s.from('support_conversations').select('*', { count: 'exact', head: true }).eq('status', 'closed'),
+      s.from('support_conversations').select('*', { count: 'exact', head: true }).eq('status', 'snoozed'),
       s.from('support_conversations').select('*', { count: 'exact', head: true }).eq('channel_type', 'whatsapp'),
       s.from('support_conversations').select('*', { count: 'exact', head: true }).eq('channel_type', 'website')
     ]);
@@ -51,6 +53,7 @@ export async function GET() {
       unread: unreadCount || 0,
       resolved: resolvedCount || 0,
       closed: closedCount || 0,
+      snoozed: snoozedCount || 0,
       channels: {
         whatsapp: whatsappCount || 0,
         website: websiteCount || 0

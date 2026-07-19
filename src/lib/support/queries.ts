@@ -13,7 +13,7 @@ export const getConversations = async (filters: any, staffId?: string, role?: st
 
   let filterVal = filters.status;
   if (filterVal && filterVal !== 'all') {
-    if (['open', 'waiting', 'pending', 'resolved', 'closed'].includes(filterVal)) {
+    if (['open', 'waiting', 'pending', 'resolved', 'closed', 'snoozed', 'spam'].includes(filterVal)) {
       query = query.eq("status", filterVal);
     } else if (filterVal === 'whatsapp' || filterVal === 'website') {
       query = query.eq("channel_type", filterVal);

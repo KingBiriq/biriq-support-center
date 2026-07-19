@@ -197,7 +197,7 @@ export default function ChatWorkspace({ conversation, onBack, onClose, onToggleP
             }}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-md transition-colors">
             <CheckCircle2 size={16} />
-            <span className="hidden md:inline">Resolve</span>
+            <span className="hidden md:inline">Solve</span>
           </button>
 
           <select 
@@ -306,7 +306,7 @@ export default function ChatWorkspace({ conversation, onBack, onClose, onToggleP
               ) : (
                 <option value="ai_takeover">Take Over from AI</option>
               )}
-              <option value="resolve">Resolve</option>
+              <option value="resolve">Solve</option>
               {conversation.assigned_agent_id && <option value="unassign">Unassign</option>}
               {['closed', 'resolved'].includes(localStatus) ? (
                 <option value="reopen">Reopen</option>
