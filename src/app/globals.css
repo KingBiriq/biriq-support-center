@@ -14,3 +14,8 @@
     text-wrap: balance;
   }
 }
+
+/* Hide mobile sidebar hamburger menu toggle when a conversation is open in mobile view */
+body.mobile-chat-open #mobile-sidebar-menu-btn {
+  display: none !important;
+}

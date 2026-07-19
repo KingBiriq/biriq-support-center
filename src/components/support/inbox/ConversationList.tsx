@@ -48,9 +48,9 @@ export default function ConversationList({
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="p-4 border-b border-slate-200 shrink-0">
+      <div className="p-4 border-b border-slate-200 shrink-0 relative">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-xl text-slate-900">Inbox</h2>
+          <h2 className="font-bold text-xl text-slate-900 ml-10 md:ml-0">Inbox</h2>
           <div className="flex items-center space-x-1 text-slate-500">
             <button className="p-1.5 hover:bg-slate-100 rounded-md transition-colors" title="Search">
               <Search size={18} />

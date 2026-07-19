@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ConversationList from "@/components/support/inbox/ConversationList";
 import ChatWorkspace from "@/components/support/inbox/ChatWorkspace";
 import CustomerPanel from "@/components/support/inbox/CustomerPanel";
@@ -11,6 +11,17 @@ export default function UnifiedInboxPage() {
   const [activeConversation, setActiveConversation] = useState<any>(null);
   const [showMobileList, setShowMobileList] = useState(true);
   const [showCustomerPanel, setShowCustomerPanel] = useState(false);
+
+  useEffect(() => {
+    if (!showMobileList) {
+      document.body.classList.add("mobile-chat-open");
+    } else {
+      document.body.classList.remove("mobile-chat-open");
+    }
+    return () => {
+      document.body.classList.remove("mobile-chat-open");
+    };
+  }, [showMobileList]);
 
   const handleSelectConversation = (conv: any) => {
     setActiveConversation((prev: any) => {
@@ -73,7 +84,7 @@ export default function UnifiedInboxPage() {
       {/* Desktop/Tablet Panel */}
       {activeConversation && (
         <div 
-          className={`fixed inset-y-0 right-0 z-40 w-[340px] transform transition-transform duration-300 ease-in-out border-l border-slate-200 bg-white shadow-2xl xl:shadow-none xl:relative xl:translate-x-0 ${
+          className={`fixed inset-y-0 right-0 z-40 w-full sm:w-[340px] transform transition-transform duration-300 ease-in-out border-l border-slate-200 bg-white shadow-2xl xl:shadow-none xl:relative xl:translate-x-0 ${
             showCustomerPanel ? "translate-x-0" : "translate-x-full hidden xl:block"
           }`}
         >

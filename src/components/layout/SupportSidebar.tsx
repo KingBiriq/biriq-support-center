@@ -139,6 +139,7 @@ export default function SupportSidebar({ user, profile }: SupportSidebarProps) {
     <>
       {/* Mobile Menu Button (visible only on small screens) */}
       <button 
+        id="mobile-sidebar-menu-btn"
         className="md:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-md shadow-sm border border-slate-200"
         onClick={() => setMobileOpen(!mobileOpen)}
       >

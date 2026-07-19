@@ -135,9 +135,11 @@ export default function ChatWorkspace({ conversation, onBack, onClose, onToggleP
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 shrink-0 ml-4">
-          {/* Assign / Agent Badge */}
-          <StaffAssignment conversation={conversation} />
+        <div className="flex items-center space-x-1 sm:space-x-2 shrink-0 ml-2 sm:ml-4">
+          {/* Assign / Agent Badge - Hidden on mobile */}
+          <div className="hidden sm:block">
+            <StaffAssignment conversation={conversation} />
+          </div>
           
           {/* AI Toggle Button */}
           {localAiStatus === 'human_takeover' ? (
@@ -243,11 +245,80 @@ export default function ChatWorkspace({ conversation, onBack, onClose, onToggleP
             <option value="set_priority">Set High Priority</option>
           </select>
 
+          {/* Native Mobile Actions Dropdown (Replaces desktop buttons on small screens) */}
+          <div className="sm:hidden relative flex items-center justify-center">
+            <select 
+              className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+              value=""
+              onChange={async (e) => {
+                const action = e.target.value;
+                if (!action) return;
+                
+                let payload: any = undefined;
+                if (action === 'snooze') {
+                   const tomorrow = new Date();
+                   tomorrow.setDate(tomorrow.getDate() + 1);
+                   payload = { until: tomorrow.toISOString() };
+                }
+                
+                if (!confirm(`Are you sure you want to perform this action: ${action}?`)) {
+                  e.target.value = "";
+                  return;
+                }
+
+                if (action === 'return_to_ai') {
+                  setLocalAiStatus('ai_active');
+                } else if (action === 'ai_takeover') {
+                  setLocalAiStatus('human_takeover');
+                }
+
+                try {
+                  await fetch(`/api/support/conversations/${conversation.id}/action`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: ['return_to_ai', 'ai_takeover'].includes(action) ? action : action, payload })
+                  });
+                  globalMutate((key: any) => typeof key === 'string' && key.startsWith('/api/support/inbox'));
+                } catch(err) {
+                  console.error(err);
+                } finally {
+                  if (action === 'close' || action === 'archive' || action === 'spam') {
+                    onClose?.();
+                  } else if (action === 'resolve') {
+                    setLocalStatus('resolved');
+                  } else if (action === 'reopen') {
+                    setLocalStatus('open');
+                  }
+                }
+                e.target.value = "";
+              }}
+            >
+              <option value="" disabled>Actions...</option>
+              {localAiStatus === 'human_takeover' ? (
+                <option value="return_to_ai">Return to AI</option>
+              ) : (
+                <option value="ai_takeover">Take Over from AI</option>
+              )}
+              <option value="resolve">Resolve</option>
+              {conversation.assigned_agent_id && <option value="unassign">Unassign</option>}
+              {['closed', 'resolved'].includes(localStatus) ? (
+                <option value="reopen">Reopen</option>
+              ) : (
+                <option value="close">Close</option>
+              )}
+              <option value="snooze">Snooze (1 Day)</option>
+              <option value="spam">Mark as Spam</option>
+            </select>
+            <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-md">
+              <MoreVertical size={20} />
+            </button>
+          </div>
+
           {/* Toggle Customer Panel Button */}
           {onTogglePanel && (
             <button 
               onClick={onTogglePanel}
-              className={`p-2 ml-1 rounded-md transition-colors ${showPanelActive ? 'bg-[#2b3890]/10 text-[#2b3890]' : 'text-slate-500 hover:bg-slate-100'}`}
+              className={`p-2 rounded-md transition-colors ${showPanelActive ? 'bg-[#2b3890]/10 text-[#2b3890]' : 'text-slate-500 hover:bg-slate-100'}`}
               title="Toggle Customer Info"
             >
               {showPanelActive ? <PanelRightClose size={20} /> : <PanelRightOpen size={20} />}
