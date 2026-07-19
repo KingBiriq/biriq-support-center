@@ -32,6 +32,9 @@ export default function CustomerPanel({ conversation, onClose }: { conversation:
     let name = contact.display_name || conversation.channel?.display_name || "Unknown Customer";
     if (name === "Guest User" || name === "Unknown Customer" || name.startsWith("guest-")) {
       if (displayPhone && !displayPhone.startsWith("guest-")) return displayPhone;
+      if (displayPhone && displayPhone.startsWith("guest-")) {
+        return `Guest #${displayPhone.substring(6, 10)}`;
+      }
     }
     return name;
   })();

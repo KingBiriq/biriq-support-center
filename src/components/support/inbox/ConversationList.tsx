@@ -136,6 +136,10 @@ export default function ConversationList({
                       {(() => {
                         let name = c.contact?.display_name || c.channel?.display_name || "Unknown Customer";
                         if (name === "Guest User" || name === "Unknown Customer" || name.startsWith("guest-")) {
+                          const phone = c.contact?.primary_phone || c.channel?.external_contact_id;
+                          if (phone && phone.startsWith("guest-")) {
+                            return `Guest #${phone.substring(6, 10)}`;
+                          }
                           if (c.contact?.primary_phone && !c.contact.primary_phone.startsWith("guest-")) return c.contact.primary_phone;
                           if (c.channel?.external_contact_id && !c.channel.external_contact_id.startsWith("guest-")) return c.channel.external_contact_id;
                           if (c.subject?.startsWith('WhatsApp: ')) return c.subject.replace('WhatsApp: ', '');

@@ -112,6 +112,10 @@ export default function ChatWorkspace({ conversation, onBack, onClose, onToggleP
               {(() => {
                 let name = conversation.contact?.display_name || conversation.channel?.display_name || "Unknown Customer";
                 if (name === "Guest User" || name === "Unknown Customer" || name.startsWith("guest-")) {
+                  const phone = conversation.contact?.primary_phone || conversation.channel?.external_contact_id;
+                  if (phone && phone.startsWith("guest-")) {
+                    return `Guest #${phone.substring(6, 10)}`;
+                  }
                   if (conversation.contact?.primary_phone && !conversation.contact.primary_phone.startsWith("guest-")) return conversation.contact.primary_phone;
                   if (conversation.channel?.external_contact_id && !conversation.channel.external_contact_id.startsWith("guest-")) return conversation.channel.external_contact_id;
                   if (conversation.subject?.startsWith('WhatsApp: ')) return conversation.subject.replace('WhatsApp: ', '');
@@ -124,11 +128,14 @@ export default function ChatWorkspace({ conversation, onBack, onClose, onToggleP
               <ChannelBadge channelType={(conversation.channel_type === 'website' && conversation.subject?.includes('WhatsApp')) ? 'whatsapp' : conversation.channel_type} size="sm" />
               <span className="truncate">
                 {(() => {
-                  let phone = conversation.contact?.primary_phone;
-                  if (phone && phone.startsWith("guest-") && conversation.subject?.startsWith('WhatsApp: ')) {
-                    return conversation.subject.replace('WhatsApp: ', '');
+                  let phone = conversation.contact?.primary_phone || conversation.channel?.external_contact_id;
+                  if (phone && phone.startsWith("guest-")) {
+                    if (conversation.subject?.startsWith('WhatsApp: ')) {
+                      return conversation.subject.replace('WhatsApp: ', '');
+                    }
+                    return "guest-" + phone.substring(6, 10);
                   }
-                  return phone || conversation.channel?.external_contact_id || "Unknown Number";
+                  return phone || "Unknown Number";
                 })()}
               </span>
             </div>
