@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
         shortcut: body.shortcut.startsWith('/') ? body.shortcut : `/${body.shortcut}`,
         title: body.title,
         body: body.body,
+        image_url: body.image_url || null,
         created_by: session.staffId,
         updated_by: session.staffId,
         language: body.language || 'so',
@@ -80,6 +81,7 @@ export async function PUT(req: NextRequest) {
     if (body.shortcut) updateData.shortcut = body.shortcut.startsWith('/') ? body.shortcut : `/${body.shortcut}`;
     if (body.title) updateData.title = body.title;
     if (body.body) updateData.body = body.body;
+    if (body.image_url !== undefined) updateData.image_url = body.image_url || null;
     if (body.language) updateData.language = body.language;
     if (body.is_active !== undefined) updateData.is_active = body.is_active;
 

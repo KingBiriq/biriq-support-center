@@ -32,14 +32,21 @@ export async function POST() {
             }).eq("id", job.id);
 
             const msg = job.support_messages;
-            const toPhone = msg?.support_conversations?.support_contacts?.primary_phone;
+            const rawPhone = msg?.support_conversations?.support_contacts?.primary_phone || "";
+            let toPhone = rawPhone.replace(/\D/g, "");
+
+            if (!toPhone || rawPhone.startsWith("guest-") || toPhone.length < 7) {
+              const subject = msg?.support_conversations?.subject || "";
+              const match = subject.match(/\d{7,}/);
+              if (match) toPhone = match[0];
+            }
 
             try {
                 let metaRes: Response;
                 let metaData: any;
                 if (job.channel_type === "whatsapp") {
                     if (!token || !phoneId || !toPhone) {
-                        throw new Error("Missing WhatsApp credentials or target phone number");
+                        throw new Error(`Missing WhatsApp credentials or target phone number (Phone: ${rawPhone})`);
                     }
                     
                     const attachments = msg.support_message_attachments || [];

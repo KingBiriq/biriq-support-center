@@ -13,6 +13,7 @@ import { useState } from "react";
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   const json = await res.json();
+  if (res.status === 401 || json?.error?.code === 'UNAUTHORIZED') { if (typeof window !== 'undefined') window.location.href = '/login?clear=true'; return; }
   if (!json.success) throw new Error(json.error?.message || "Failed to load");
   return json.data;
 };

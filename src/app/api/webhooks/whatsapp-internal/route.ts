@@ -268,6 +268,10 @@ async function processWhatsAppPayload(payload: any, sAdmin: any, eventId: string
                     if (msgErr.code !== '23505') {
                         throw new Error(`Message insert failed: ${msgErr.message}`);
                     }
+                    if (mediaId) {
+                        const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3005';
+                        fetch(`${origin}/api/support/media-worker`, { method: "POST" }).catch(() => {});
+                    }
                 } else if (mediaId && msgData) {
                     // Enqueue media job
                     const { error: mediaErr } = await sAdmin.from("support_media_jobs").insert({
@@ -277,6 +281,10 @@ async function processWhatsAppPayload(payload: any, sAdmin: any, eventId: string
                     });
                     if (mediaErr) {
                         console.error("Error inserting media job:", mediaErr.message);
+                    } else {
+                        // Trigger media worker async
+                        const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3005';
+                        fetch(`${origin}/api/support/media-worker`, { method: "POST" }).catch(() => {});
                     }
                 }
 

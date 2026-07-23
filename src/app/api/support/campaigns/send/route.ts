@@ -37,15 +37,22 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { 
+      campaignType = "template",
       templateName, 
-      templateLanguage, 
+      templateLanguage,
+      messageBody,
+      attachment,
       manualNumbers = "", 
       includeSavedContacts = false, 
       includeWebsiteGuests = false 
     } = body;
 
-    if (!templateName || !templateLanguage) {
+    if (campaignType === "template" && (!templateName || !templateLanguage)) {
       return NextResponse.json({ error: "Missing template details" }, { status: 400 });
+    }
+
+    if (campaignType === "text" && !messageBody && !attachment) {
+      return NextResponse.json({ error: "Missing message text or media attachment" }, { status: 400 });
     }
 
     const sAdmin = supabaseAdmin();
@@ -173,8 +180,11 @@ export async function POST(req: NextRequest) {
           conversation = newConv;
         }
 
-        // Insert Template Message
+        // Insert Message
         const idempotencyKey = crypto.randomUUID();
+        const msgBody = campaignType === "template" ? templatePayload : (messageBody || "");
+        const msgType = campaignType === "template" ? "template" : "text";
+
         const { data: message, error: msgErr } = await sAdmin
           .from("support_messages")
           .insert({
@@ -183,8 +193,8 @@ export async function POST(req: NextRequest) {
             sender_staff_id: session.staffId,
             sender_type: "staff",
             direction: "outbound",
-            body: templatePayload,
-            message_type: "template",
+            body: msgBody,
+            message_type: msgType,
             status: "queued",
             idempotency_key: `bulk_${idempotencyKey}`
           })
@@ -192,6 +202,20 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (msgErr) continue;
+
+        // If attachment present, insert attachment record
+        if (attachment && attachment.base64) {
+          const mime = attachment.type || "image/jpeg";
+          const base64Data = attachment.base64;
+          const storagePath = `data:${mime};base64,${base64Data}`;
+          await sAdmin.from("support_message_attachments").insert({
+            message_id: message.id,
+            file_name: attachment.name || "media",
+            mime_type: mime,
+            file_size: Math.round(base64Data.length * 0.75),
+            storage_path: storagePath
+          });
+        }
 
         // Insert Job
         await sAdmin.from("support_outbound_message_jobs").insert({

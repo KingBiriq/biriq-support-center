@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   const json = await res.json();
+  if (res.status === 401 || json?.error?.code === 'UNAUTHORIZED') { if (typeof window !== 'undefined') window.location.href = '/login?clear=true'; return; }
   if (!json.success) throw new Error(json.error?.message || "Failed to load");
   return json.data;
 };
@@ -23,46 +24,148 @@ export default function ConversationList({
   activeId?: string 
 }) {
   const [filter, setFilter] = useState("open");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchInput, setShowSearchInput] = useState(false);
+  const [showPlusModal, setShowPlusModal] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Realtime approach: Polling via SWR as requested for MVP stability without exposing browser RLS
   const { data: conversations, error, isLoading } = useSWR(`/api/support/inbox?status=${filter}`, fetcher, { 
-    refreshInterval: 2000 
+    refreshInterval: 2000,
+    refreshWhenHidden: true 
   });
 
-  const handleRefresh = () => {
-    mutate(`/api/support/inbox?status=${filter}`);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await mutate(`/api/support/inbox?status=${filter}`);
+    setTimeout(() => setIsRefreshing(false), 500);
   };
 
+  const handleStartNewChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPhone.trim()) return;
+    setCreating(true);
+    setCreateError("");
+    try {
+      const res = await fetch("/api/support/conversations/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone_number: newPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to create conversation");
+      }
+      setShowPlusModal(false);
+      setNewPhone("");
+      await handleRefresh();
+      if (data.conversation) {
+        onSelectConversation(data.conversation);
+      }
+    } catch (err: any) {
+      setCreateError(err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const paramContactId = searchParams?.get("contact");
+  const paramConvId = searchParams?.get("conversation");
+  const paramOrderId = searchParams?.get("order");
+
   useEffect(() => {
-    if (activeId && conversations) {
+    if (conversations && Array.isArray(conversations) && conversations.length > 0) {
+      if (paramContactId) {
+        const match = conversations.find((c: any) => c.support_contact_id === paramContactId || c.contact?.id === paramContactId);
+        if (match) {
+          onSelectConversation(match);
+          return;
+        }
+      }
+      if (paramConvId) {
+        const match = conversations.find((c: any) => c.id === paramConvId);
+        if (match) {
+          onSelectConversation(match);
+          return;
+        }
+      }
+      if (paramOrderId) {
+        const match = conversations.find((c: any) => c.meta?.order_id === paramOrderId || c.meta?.order_reference === paramOrderId || c.id === paramOrderId);
+        if (match) {
+          onSelectConversation(match);
+          return;
+        }
+      }
+    }
+  }, [conversations, paramContactId, paramConvId, paramOrderId]);
+
+  useEffect(() => {
+    if (activeId && conversations && Array.isArray(conversations)) {
       const updatedActive = conversations.find((c: any) => c.id === activeId);
       if (updatedActive) {
-        // We only want to trigger the update if something actually changed.
-        // For simplicity in this demo, we'll just push the new object up, 
-        // but to avoid infinite loops, the parent should be okay with identity changes.
         onSelectConversation(updatedActive);
       }
     }
   }, [conversations, activeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Filter conversations by search query
+  const filteredConversations = Array.isArray(conversations) ? conversations.filter((c: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const name = (c.support_contacts?.full_name || c.subject || "").toLowerCase();
+    const phone = (c.support_contacts?.primary_phone || "").toLowerCase();
+    const lastMsg = (c.last_message?.body || "").toLowerCase();
+    return name.includes(q) || phone.includes(q) || lastMsg.includes(q);
+  }) : [];
+
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white relative">
       {/* Header */}
       <div className="p-4 border-b border-slate-200 shrink-0 relative">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-xl text-slate-900 ml-10 md:ml-0">Inbox</h2>
           <div className="flex items-center space-x-1 text-slate-500">
-            <button className="p-1.5 hover:bg-slate-100 rounded-md transition-colors" title="Search">
+            <button 
+              onClick={() => setShowSearchInput(!showSearchInput)} 
+              className={`p-1.5 rounded-md transition-colors ${showSearchInput ? 'bg-[#2b3890]/10 text-[#2b3890]' : 'hover:bg-slate-100'}`} 
+              title="Search Conversations"
+            >
               <Search size={18} />
             </button>
-            <button className="p-1.5 hover:bg-slate-100 rounded-md transition-colors" title="New Conversation">
+            <button 
+              onClick={() => setShowPlusModal(true)} 
+              className="p-1.5 hover:bg-slate-100 rounded-md transition-colors" 
+              title="New WhatsApp Chat"
+            >
               <Plus size={18} />
             </button>
-            <button onClick={handleRefresh} className="p-1.5 hover:bg-slate-100 rounded-md transition-colors" title="Refresh">
+            <button 
+              onClick={handleRefresh} 
+              className={`p-1.5 hover:bg-slate-100 rounded-md transition-colors ${isRefreshing ? 'animate-spin text-[#2b3890]' : ''}`} 
+              title="Refresh Inbox"
+            >
               <RefreshCw size={18} />
             </button>
           </div>
         </div>
+
+        {/* Search Input Bar */}
+        {showSearchInput && (
+          <div className="mb-3 animate-in fade-in slide-in-from-top-2 duration-200">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Raadi magaca, nambarka ama farriinta..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#2b3890]/20 focus:border-[#2b3890]"
+              autoFocus
+            />
+          </div>
+        )}
         
         {/* Filter Dropdown */}
         <div className="relative">
@@ -92,6 +195,52 @@ export default function ConversationList({
         </div>
       </div>
 
+      {/* Start New WhatsApp Chat Modal */}
+      {showPlusModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl max-w-sm w-full p-5 shadow-2xl border border-slate-100">
+            <h3 className="font-bold text-lg text-slate-900 mb-1">Sheeko WhatsApp Cusub</h3>
+            <p className="text-xs text-slate-500 mb-4">Geli nambarka WhatsApp-ka macmiilka si aad sheeko cusub uga bilaabdo.</p>
+            
+            <form onSubmit={handleStartNewChat} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Nambarka Taleefanka</label>
+                <input
+                  type="text"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="Tusaale: 252616417528"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm text-slate-800 focus:outline-none focus:border-[#2b3890]"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {createError && (
+                <p className="text-xs text-red-600 font-medium">{createError}</p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPlusModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Kansal
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-[#2b3890] hover:bg-[#20296b] rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {creating ? "Furaya..." : "Biloow Sheeko"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* List Area */}
       <div className="flex-1 overflow-y-auto">
         {error ? (
@@ -100,12 +249,12 @@ export default function ConversationList({
           </div>
         ) : isLoading || !conversations ? (
           <LoadingSkeleton lines={6} />
-        ) : conversations.length === 0 ? (
+        ) : filteredConversations.length === 0 ? (
           <div className="p-6">
             <EmptyState 
               icon={Search} 
               title="No conversations" 
-              description="No conversations found matching this filter." 
+              description={searchQuery ? "No conversations found matching your search." : "No conversations found matching this filter."} 
             />
           </div>
         ) : !Array.isArray(conversations) ? (
@@ -113,7 +262,7 @@ export default function ConversationList({
             <ErrorState message={`API Error: ${conversations?.error || "Invalid data format received"}`} />
           </div>
         ) : (
-          conversations.map((c: any) => {
+          filteredConversations.map((c: any) => {
             const isActive = activeId === c.id;
             const isUnread = c.unread_count > 0;
             const isWhatsAppConv = (c.channel_type === 'website' && c.subject?.includes('WhatsApp')) || c.channel_type === 'whatsapp';

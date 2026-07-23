@@ -53,6 +53,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       case 'close':
         requiredPermission = 'conversations.resolve';
         updates = { status: 'closed', closed_at: new Date().toISOString() };
+        
+        // Auto-send CSAT Rating prompt message to customer
+        try {
+          const csatMsg = "Sheekadiinii waa la xiray. Fadlan qiimee adeegayaga shaqada (1-5 Stars):\n\n⭐️⭐️⭐️⭐️⭐️ (5 - aad u wanaagsan)\n⭐️⭐️⭐️⭐️ (4 - Wanaagsan)\n⭐️⭐️⭐️ (3 - Caadi)\n⭐️⭐️ (2 - Liita)\n⭐️ (1 - Aad u liita)";
+          await sAdmin.from("support_messages").insert({
+            conversation_id: id,
+            channel_type: "website",
+            sender_type: "system",
+            direction: "outbound",
+            body: csatMsg,
+            status: "delivered"
+          });
+        } catch(e) { console.error("Failed to send CSAT message:", e); }
         break;
       case 'reopen':
         requiredPermission = 'conversations.reply';

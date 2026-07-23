@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BiriqSupportResponse",
+  "type": "object",
+  "required": [
+    "message",
+    "intent",
+    "needs_human"
+  ],
+  "properties": {
+    "message": {
+      "type": "string"
+    },
+    "intent": {
+      "type": "string",
+      "enum": [
+        "account",
+        "login",
+        "order_status",
+        "payment_issue",
+        "delivery_issue",
+        "wrong_player_id",
+        "refund",
+        "cashback",
+        "withdrawal",
+        "product_information",
+        "technical_issue",
+        "scam_report",
+        "human_agent",
+        "general_question"
+      ]
+    },
+    "order_reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "needs_human": {
+      "type": "boolean"
+    },
+    "escalation_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "suggested_action": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

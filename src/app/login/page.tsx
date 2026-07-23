@@ -11,22 +11,25 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        // If already logged in, go to inbox
-        router.replace("/");
-      } else {
+    const params = new URLSearchParams(window.location.search);
+    const shouldClear = params.get("clear") === "true";
+
+    if (shouldClear) {
+      supabase.auth.signOut().then(() => {
         setLoading(false);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        router.replace("/");
-      }
-    });
-
-    return () => subscription.unsubscribe();
+        // Remove the clear param from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      });
+    } else {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          // If already logged in, go to inbox
+          router.replace("/");
+        } else {
+          setLoading(false);
+        }
+      });
+    }
   }, [router]);
 
   if (loading) {

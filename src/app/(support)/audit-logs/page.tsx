@@ -10,8 +10,44 @@ import { EmptyState } from "@/components/ui/EmptyState";
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   const json = await res.json();
+  if (res.status === 401 || json?.error?.code === 'UNAUTHORIZED') { if (typeof window !== 'undefined') window.location.href = '/login?clear=true'; return; }
   if (!json.success) throw new Error(json.error?.message || "Failed to load");
   return json.data;
+};
+
+const formatSomaliAction = (action: string) => {
+  switch (action) {
+    case 'conversation.mark_read': return 'La Akhriyay Sheekada';
+    case 'conversation.ai_takeover': return 'AI Handoff (Ku Soo Wareejiyay)';
+    case 'conversation.return_to_ai': return 'Loo Celiyay AI-ga';
+    case 'conversation.close': return 'La Xiray Sheekada';
+    case 'conversation.resolve': return 'La Xaliyay Dhibaatada';
+    case 'conversation.assign': return 'Shaqaale Loo Xilsaaray';
+    case 'contact.deleted': return 'La Tirtiray Macmiil';
+    case 'staff_onboarded': return 'Shaqaale Cusub';
+    case 'staff.login': return 'Soo Galay Nidaamka';
+    case 'settings.updated': return 'Astaamaha La Beddelay';
+    default: return action.replace('.', ' ').toUpperCase();
+  }
+};
+
+const formatSomaliDetails = (action: string, details: any) => {
+  if (!details) return '-';
+  if (typeof details === 'string') return details;
+  
+  if (action === 'conversation.mark_read') {
+    return `Waxaa la akhriyay sheekada macmiilka ID #${details.conversation_id?.substring(0, 8) || ''}`;
+  }
+  if (action === 'conversation.ai_takeover') {
+    return `AI-gii wuxuu sheekada ID #${details.conversation_id?.substring(0, 8) || ''} ku soo wareejiyay stafka.`;
+  }
+  if (action === 'conversation.close') {
+    return `Waxaa la xiray sheekada ID #${details.conversation_id?.substring(0, 8) || ''} iyadoo loo diray rating prompt.`;
+  }
+  if (action === 'conversation.resolve') {
+    return `Waxaa si buuxda loo xaliyay dhibaatadii sheekada ID #${details.conversation_id?.substring(0, 8) || ''}.`;
+  }
+  return JSON.stringify(details);
 };
 
 export default function AuditLogsPage() {
@@ -75,13 +111,13 @@ export default function AuditLogsPage() {
                     <p className="font-medium text-slate-900">{log.staff?.first_name || 'System'}</p>
                   </td>
                   <td className="p-4">
-                    <span className="inline-block px-2.5 py-1 bg-blue-50 text-blue-700 font-mono text-xs rounded-lg border border-blue-100">
-                      {log.action}
+                    <span className="inline-block px-3 py-1 bg-blue-50 text-blue-800 font-semibold text-xs rounded-lg border border-blue-200">
+                      {formatSomaliAction(log.action)}
                     </span>
                   </td>
-                  <td className="p-4 text-sm text-slate-600 font-mono">
+                  <td className="p-4 text-sm text-slate-700 font-medium">
                     <div className="max-w-md truncate" title={JSON.stringify(log.details)}>
-                      {JSON.stringify(log.details)}
+                      {formatSomaliDetails(log.action, log.details)}
                     </div>
                   </td>
                   <td className="p-4 text-sm text-slate-500 font-mono">

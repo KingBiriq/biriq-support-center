@@ -12,13 +12,71 @@ export default function WhatsAppComposer({ conversation, onMessageSent }: { conv
   const [quickReplyFilter, setQuickReplyFilter] = useState("");
   const [attachment, setAttachment] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   // Fetch quick replies
   const { data: quickReplies } = useSWR('/api/support/quick-replies', async (url) => {
     const res = await fetch(url);
     const json = await res.json();
     return json.success ? json.data.filter((r: any) => r.is_active) : [];
   });
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([audioBlob], `voice_note_${Date.now()}.webm`, { type: 'audio/webm' });
+        setAttachment(file);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } catch (err) {
+      setError("Microphone access denied or not available.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaRecorderRef.current && isRecording) {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, [isRecording]);
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (conversation?.id) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [conversation?.id]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,19 +286,38 @@ export default function WhatsAppComposer({ conversation, onMessageSent }: { conv
           </div>
         )}
 
-        <textarea 
-          value={message}
-          onChange={handleTextChange}
-          placeholder={attachment ? "Add a caption..." : "Type your message..."}
-          className="w-full min-h-[60px] max-h-[200px] bg-transparent resize-none p-3 text-sm focus:outline-none placeholder-slate-400 text-slate-800 disabled:cursor-not-allowed"
-          disabled={isSending}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage(e);
-            }
-          }}
-        />
+        {isRecording ? (
+          <div className="flex items-center justify-between bg-red-50 p-4 min-h-[60px] animate-pulse">
+            <div className="flex items-center gap-3 text-red-600">
+              <Mic size={20} className="animate-bounce" />
+              <span className="font-semibold text-sm">Recording Voice Note...</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-red-500 font-mono text-sm">
+                {Math.floor(recordingTime / 60).toString().padStart(2, '0')}:{(recordingTime % 60).toString().padStart(2, '0')}
+              </span>
+              <button type="button" onClick={stopRecording} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-full text-xs font-medium transition-colors shadow-sm">
+                Stop & Save
+              </button>
+            </div>
+          </div>
+        ) : (
+          <textarea 
+            ref={inputRef}
+            autoFocus
+            value={message}
+            onChange={handleTextChange}
+            placeholder={attachment ? "Add a caption..." : "Type your message..."}
+            className="w-full min-h-[60px] max-h-[200px] bg-transparent resize-none p-3 text-sm focus:outline-none placeholder-slate-400 text-slate-800 disabled:cursor-not-allowed"
+            disabled={isSending}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage(e);
+              }
+            }}
+          />
+        )}
         
         {/* Toolbar & Send Button */}
         <div className="flex items-center justify-between p-2 pt-0">
@@ -248,7 +325,9 @@ export default function WhatsAppComposer({ conversation, onMessageSent }: { conv
             <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 hover:bg-slate-200 hover:text-slate-600 rounded disabled:opacity-50"><Paperclip size={18} /></button>
             <button type="button" onClick={() => { if(fileInputRef.current){ fileInputRef.current.accept="image/*"; fileInputRef.current.click(); } }} className="hidden sm:block p-1.5 hover:bg-slate-200 hover:text-slate-600 rounded disabled:opacity-50"><ImageIcon size={18} /></button>
             <button type="button" onClick={() => { if(fileInputRef.current){ fileInputRef.current.accept="application/pdf,.doc,.docx"; fileInputRef.current.click(); } }} className="hidden sm:block p-1.5 hover:bg-slate-200 hover:text-slate-600 rounded disabled:opacity-50"><FileText size={18} /></button>
-            <button type="button" onClick={() => { if(fileInputRef.current){ fileInputRef.current.accept="audio/*,video/*"; fileInputRef.current.click(); } }} className="hidden md:block p-1.5 hover:bg-slate-200 hover:text-slate-600 rounded disabled:opacity-50"><Mic size={18} /></button>
+            <button type="button" onClick={isRecording ? stopRecording : startRecording} className={`hidden md:block p-1.5 hover:bg-slate-200 rounded disabled:opacity-50 ${isRecording ? 'text-red-500 bg-red-100' : 'hover:text-slate-600'}`}>
+              <Mic size={18} />
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -264,7 +343,7 @@ export default function WhatsAppComposer({ conversation, onMessageSent }: { conv
             ) : null}
             <button 
               onClick={sendMessage}
-              disabled={isSending || !message.trim()}
+              disabled={isSending || (!message.trim() && !attachment)}
               className={`px-4 py-1.5 rounded-md font-medium text-sm transition-colors shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed text-white
                 ${isWhatsApp ? 'bg-[#25D366] hover:bg-[#128C7E]' : 'bg-[#2b3890] hover:bg-blue-800'}
               `}

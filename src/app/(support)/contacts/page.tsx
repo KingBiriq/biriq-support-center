@@ -11,6 +11,7 @@ import Link from "next/link";
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   const json = await res.json();
+  if (res.status === 401 || json?.error?.code === 'UNAUTHORIZED') { if (typeof window !== 'undefined') window.location.href = '/login?clear=true'; return; }
   if (!json.success) throw new Error(json.error?.message || "Failed to load");
   return json.data;
 };
@@ -92,21 +93,33 @@ export default function ContactsPage() {
                   </td>
                   <td className="p-4">
                     <div className="flex flex-wrap gap-2">
-                      {c.channels?.map((ch: any) => (
-                        <span key={ch.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                          {ch.channel_type === 'whatsapp' ? <Phone className="w-3 h-3 text-green-600" /> : <Mail className="w-3 h-3 text-slate-500" />}
-                          {ch.identity_value}
+                      {c.primary_phone && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                          <Phone className="w-3 h-3 text-emerald-600" />
+                          WhatsApp: {c.primary_phone}
                         </span>
-                      ))}
+                      )}
+                      {c.primary_email && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
+                          <Mail className="w-3 h-3 text-purple-600" />
+                          Web: {c.primary_email}
+                        </span>
+                      )}
+                      {(!c.primary_phone && !c.primary_email) && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                          Website Support
+                        </span>
+                      )}
                     </div>
                   </td>
-                  <td className="p-4 text-sm text-slate-500">
+                  <td className="p-4 text-sm text-slate-500 font-medium">
                     {new Date(c.created_at).toLocaleDateString()}
                   </td>
                   <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Link href={`/?contact=${c.id}`} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Message">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link href={`/?contact=${c.id}`} className="p-2 text-[#2b3890] hover:bg-blue-50 rounded-lg transition-colors border border-slate-200 flex items-center gap-1 text-xs font-semibold" title="Direct Chat">
                         <MessageSquare className="w-4 h-4" />
+                        <span>Chat</span>
                       </Link>
                       <button onClick={() => handleDelete(c.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
                         <Trash2 className="w-4 h-4" />

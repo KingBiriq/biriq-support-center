@@ -33,10 +33,16 @@ export async function verifySupportSession() {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get("support_session")?.value;
 
-  if (!sessionToken) return null;
+  console.log("verifySupportSession: TOKEN EXTRACTED?", !!sessionToken);
+
+  if (!sessionToken) {
+     console.log("verifySupportSession: MISSING TOKEN!");
+     return null;
+  }
 
   try {
     const { payload } = await jwtVerify(sessionToken, getSecretKey());
+    console.log("verifySupportSession: VERIFY SUCCESS!", payload.staffId);
     
     // Verify user still exists and is active
     const s = supabaseAdmin();

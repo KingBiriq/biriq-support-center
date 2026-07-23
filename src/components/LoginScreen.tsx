@@ -39,13 +39,24 @@ export default function SupportLogin({ onLogin }: { onLogin?: (user: any) => voi
       if (profile?.role === "admin" || profile?.role === "superadmin" || profile?.role === "manager" || profile?.role === "support") {
           // Set backend cookie
           try {
-              await fetch('/api/support/login', {
+              const res = await fetch('/api/support/login', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ access_token: data.session?.access_token })
               });
+              if (!res.ok) {
+                  const errData = await res.json();
+                  await supabase.auth.signOut();
+                  setError(errData.error || "Failed to establish support session. Please contact your administrator.");
+                  setLoading(false);
+                  return;
+              }
           } catch (e) {
               console.error("Failed to set backend cookie", e);
+              await supabase.auth.signOut();
+              setError("Network error establishing session.");
+              setLoading(false);
+              return;
           }
           if (onLogin) onLogin(data.user);
       } else {

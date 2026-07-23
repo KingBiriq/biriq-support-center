@@ -12,16 +12,15 @@ import { ArrowLeft, MoreVertical, Tag, CheckCircle2, UserRound, PanelRightClose,
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   const json = await res.json();
+  if (res.status === 401 || json?.error?.code === 'UNAUTHORIZED') { if (typeof window !== 'undefined') window.location.href = '/login?clear=true'; return; }
   if (!json.success) throw new Error(json.error?.message || "Failed to load");
   
-  // Deduplicate messages by body text to prevent double rendering in UI
+  // Deduplicate messages by ID to prevent double rendering in UI
   const data = json.data || [];
   const seen = new Set();
   return data.filter((msg: any) => {
-    // If it is internal or has a unique body + timestamp key, filter duplicate texts
-    const key = msg.is_internal ? msg.id : `${msg.direction}_${msg.body}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
+    if (seen.has(msg.id)) return false;
+    seen.add(msg.id);
     return true;
   });
 };
@@ -50,7 +49,8 @@ export default function ChatWorkspace({ conversation, onBack, onClose, onToggleP
   }, [conversation.id, conversation.status, conversation.ai_status]);
 
   const { data: messages, mutate } = useSWR(`/api/support/messages?conversationId=${conversation.id}`, fetcher, {
-    refreshInterval: 1000
+    refreshInterval: 1000,
+    refreshWhenHidden: true
   });
 
   useEffect(() => {

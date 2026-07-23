@@ -11,6 +11,7 @@ import useSWR from "swr";
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   const json = await res.json();
+  if (res.status === 401 || json?.error?.code === 'UNAUTHORIZED') { if (typeof window !== 'undefined') window.location.href = '/login?clear=true'; return; }
   if (!json.success) throw new Error(json.error?.message || "Failed to load");
   return json.data;
 };
@@ -152,7 +153,7 @@ export default function CustomerPanel({ conversation, onClose }: { conversation:
                 Link Order <ExternalLink size={12} className="ml-1" />
               </button>
             </div>
-            <CustomerOrders phone={displayPhone} />
+            <CustomerOrders phone={displayPhone} conversationId={conversation.id} />
           </div>
         )}
 
@@ -232,8 +233,39 @@ export default function CustomerPanel({ conversation, onClose }: { conversation:
   );
 }
 
-function CustomerOrders({ phone }: { phone?: string }) {
+function CustomerOrders({ phone, conversationId }: { phone?: string, conversationId?: string }) {
   const { data: orders, error, isLoading } = useSWR(phone ? `/api/support/orders?q=${encodeURIComponent(phone)}` : null, fetcher);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const handleSendOrderToChat = async (order: any) => {
+    if (!conversationId) return;
+    setSendingId(order.id);
+    try {
+      const orderMessage = `📦 *Xogta Dalabka (Order Details)*\n\n` +
+        `• *Alaabta:* ${order.product?.title || order.catalogue_name || 'Game Topup'}\n` +
+        `• *Player Name:* ${order.player_name || 'N/A'}\n` +
+        `• *Player ID:* ${order.player_id || 'N/A'}\n` +
+        `• *Lacagta:* $${order.amount_paid}\n` +
+        `• *Payment:* ${order.gateway_name || order.gateway_id || 'EVC/Waafi'}\n` +
+        `• *Status:* ${order.delivery_status} (${order.payment_status})\n` +
+        `• *Waqtiga:* ${new Date(order.created_at).toLocaleString()}`;
+
+      await fetch(`/api/support/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: orderMessage,
+          idempotencyKey: `ord_${order.id}_${Date.now()}`
+        })
+      });
+
+      alert("Xogta dalabka waxaa lagu diray chat-ka!");
+    } catch (e) {
+      alert("Failed to send order into chat.");
+    } finally {
+      setSendingId(null);
+    }
+  };
 
   if (isLoading) return <div className="text-center p-4 text-slate-500 text-sm">Loading orders...</div>;
   if (error) return <div className="text-center p-4 text-red-500 text-sm">Failed to load orders.</div>;
@@ -246,22 +278,53 @@ function CustomerOrders({ phone }: { phone?: string }) {
 
   return (
     <div className="space-y-3">
-      {orders.map((o: any) => (
-        <div key={o.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5 hover:border-slate-300 transition-colors">
-          <div className="flex justify-between items-center font-medium">
-            <span className="text-slate-900 truncate pr-2">{o.product?.title || 'Unknown'}</span>
-            <span className="text-[#2b3890] whitespace-nowrap">${o.amount_paid}</span>
+      {orders.map((o: any) => {
+        const prodName = o.product?.title || o.catalogue_name || `${(o.game_code || '').toUpperCase()} Topup`;
+        return (
+          <div key={o.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2 hover:border-slate-300 transition-all shadow-sm">
+            <div className="flex justify-between items-start font-bold">
+              <span className="text-slate-900 text-sm truncate pr-2">{prodName}</span>
+              <span className="text-[#2b3890] font-extrabold text-sm whitespace-nowrap">${o.amount_paid}</span>
+            </div>
+            
+            <div className="bg-white p-2 rounded-lg border border-slate-100 space-y-1">
+              <div className="flex justify-between text-slate-700">
+                <span className="text-slate-400">Player Name:</span>
+                <span className="font-semibold">{o.player_name || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between text-slate-700 font-mono">
+                <span className="text-slate-400 font-sans">Player ID:</span>
+                <span className="font-bold text-slate-900">{o.player_id || 'N/A'} {o.server_id ? `(${o.server_id})` : ''}</span>
+              </div>
+              <div className="flex justify-between text-slate-700">
+                <span className="text-slate-400">Payment Method:</span>
+                <span className="font-medium text-slate-800">{o.gateway_name || o.gateway_id || 'EVC Plus'}</span>
+              </div>
+              <div className="flex justify-between text-slate-500 text-[11px] pt-0.5">
+                <span>{new Date(o.created_at).toLocaleDateString()}</span>
+                <span>{new Date(o.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex gap-1.5">
+                <StatusBadge status={o.delivery_status} size="sm" />
+                <StatusBadge status={o.payment_status} size="sm" />
+              </div>
+
+              {conversationId && (
+                <button
+                  onClick={() => handleSendOrderToChat(o)}
+                  disabled={sendingId === o.id}
+                  className="px-2.5 py-1 text-[11px] font-bold text-white bg-[#2b3890] hover:bg-[#20296b] rounded-md transition-colors disabled:opacity-50"
+                >
+                  {sendingId === o.id ? "Sending..." : "Dir Chat-ka"}
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex justify-between text-slate-500 font-mono">
-            <span>{o.player_id} {o.server_id ? `(${o.server_id})` : ''}</span>
-            <span>{new Date(o.created_at).toLocaleDateString()}</span>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <StatusBadge status={o.delivery_status} size="sm" />
-            <StatusBadge status={o.payment_status} size="sm" />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

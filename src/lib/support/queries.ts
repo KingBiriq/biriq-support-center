@@ -41,6 +41,42 @@ export const getConversations = async (filters: any, staffId?: string, role?: st
   
   const { data, error } = await query;
   if (error) throw error;
+
+  if (data && data.length > 0) {
+    // Collect all phone numbers and emails to check registered Biriq Store profiles
+    const phones = data.map((c: any) => c.contact?.primary_phone || c.subject?.replace(/\D/g, '')).filter(Boolean);
+    const emails = data.map((c: any) => c.contact?.primary_email).filter(Boolean);
+
+    let profilesMap: Record<string, string> = {};
+    if (phones.length > 0 || emails.length > 0) {
+      const { data: profiles } = await s
+        .from("profiles")
+        .select("full_name, phone_number, email");
+
+      if (profiles) {
+        profiles.forEach((p: any) => {
+          if (p.phone_number) profilesMap[p.phone_number.replace(/\D/g, '')] = p.full_name;
+          if (p.email) profilesMap[p.email.toLowerCase()] = p.full_name;
+        });
+      }
+    }
+
+    // Attach enriched name if available
+    data.forEach((c: any) => {
+      const phone = (c.contact?.primary_phone || c.subject || '').replace(/\D/g, '');
+      const email = (c.contact?.primary_email || '').toLowerCase();
+      const matchedName = profilesMap[phone] || profilesMap[email];
+
+      if (matchedName) {
+        if (c.contact) {
+          c.contact.full_name = matchedName;
+        } else {
+          c.support_contacts = { full_name: matchedName, primary_phone: phone };
+        }
+      }
+    });
+  }
+
   return data;
 };
 

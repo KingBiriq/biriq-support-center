@@ -12,6 +12,7 @@ import Link from "next/link";
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   const json = await res.json();
+  if (res.status === 401 || json?.error?.code === 'UNAUTHORIZED') { if (typeof window !== 'undefined') window.location.href = '/login?clear=true'; return; }
   if (!json.success) throw new Error(json.error?.message || "Failed to load");
   return json;
 };
@@ -72,40 +73,52 @@ export default function OrdersPage() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-sm font-medium text-slate-500">
                 <th className="p-4">Customer</th>
-                <th className="p-4">Product</th>
-                <th className="p-4">Amount</th>
+                <th className="p-4">Product & Player Details</th>
+                <th className="p-4">Amount & Gateway</th>
                 <th className="p-4">Delivery</th>
                 <th className="p-4">Payment</th>
+                <th className="p-4">Date</th>
                 <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {orders.map((o: any) => (
-                <tr key={o.id} className="hover:bg-slate-50 transition-colors group">
-                  <td className="p-4">
-                    <p className="font-medium text-slate-900">{o.player_name || o.customer_phone}</p>
-                    <p className="text-sm text-slate-500 font-mono">{o.customer_phone}</p>
-                  </td>
-                  <td className="p-4">
-                    <p className="text-slate-900">{o.product?.name || 'Unknown Product'}</p>
-                    <p className="text-sm text-slate-500">ID: {o.player_id} {o.server_id ? `(${o.server_id})` : ''}</p>
-                  </td>
-                  <td className="p-4 font-medium">${o.amount_paid}</td>
-                  <td className="p-4">
-                    <StatusBadge status={o.delivery_status?.toLowerCase()} />
-                  </td>
-                  <td className="p-4">
-                     <StatusBadge status={o.payment_status?.toLowerCase()} />
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Link href={`/?order=${o.id}`} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Link to Conversation">
-                        <ExternalLink className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {orders.map((o: any) => {
+                const productTitle = o.catalogue_name || o.product?.title || (o.game_code ? `${o.game_code.toUpperCase()} Package` : 'Gaming Package');
+                return (
+                  <tr key={o.id} className="hover:bg-slate-50 transition-colors group">
+                    <td className="p-4">
+                      <p className="font-semibold text-slate-900">{o.customer_name || o.player_name || 'Macaamiil Biriq'}</p>
+                      <p className="text-xs text-slate-500 font-mono">{o.customer_phone}</p>
+                    </td>
+                    <td className="p-4">
+                      <p className="font-bold text-blue-900 text-sm">{productTitle}</p>
+                      <p className="text-xs text-slate-600 font-medium">
+                        Player: <span className="text-slate-900 font-semibold">{o.player_name || '-'}</span> | ID: <span className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-800">{o.player_id || '-'}</span>
+                      </p>
+                    </td>
+                    <td className="p-4">
+                      <p className="font-bold text-slate-900">${o.amount_paid}</p>
+                      <p className="text-xs text-slate-500 font-medium">{o.gateway_name || o.gateway_id || 'Online'}</p>
+                    </td>
+                    <td className="p-4">
+                      <StatusBadge status={o.delivery_status?.toLowerCase()} />
+                    </td>
+                    <td className="p-4">
+                      <StatusBadge status={o.payment_status?.toLowerCase()} />
+                    </td>
+                    <td className="p-4 text-xs text-slate-500 font-medium whitespace-nowrap">
+                      {new Date(o.created_at).toLocaleString()}
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Link href={`/?order=${o.id}`} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Go to Chat">
+                          <ExternalLink className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -60,7 +60,26 @@ export default function SupportSidebar({ user, profile }: SupportSidebarProps) {
 
       {/* Nav Links */}
       <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => {
+          const role = (profile?.role || "agent").toLowerCase();
+          const isAdmin = role === "admin" || role === "super_admin" || role === "superadmin" || role === "manager";
+          
+          if (isAdmin) return true;
+
+          // Non-admin staff (WhatsApp agent / Website agent) only see operational tools
+          const allowedForAgents = [
+            "Inbox", 
+            "Contacts", 
+            "Orders", 
+            "Payments",
+            "Quick Replies", 
+            "Templates", 
+            "Bulk Send", 
+            "Notifications"
+          ];
+          
+          return allowedForAgents.includes(item.name);
+        }).map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           return (

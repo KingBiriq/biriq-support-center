@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import useSWR from "swr";
-import { Zap, Plus, Trash2, X, Edit, Search, Filter, CheckCircle, XCircle } from "lucide-react";
+import { Zap, Plus, Trash2, X, Edit, Search, CheckCircle, XCircle, Image as ImageIcon } from "lucide-react";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -11,6 +11,7 @@ import { toast } from "react-hot-toast";
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   const json = await res.json();
+  if (res.status === 401 || json?.error?.code === 'UNAUTHORIZED') { if (typeof window !== 'undefined') window.location.href = '/login?clear=true'; return; }
   if (!json.success) throw new Error(json.error?.message || "Failed to load");
   return json.data;
 };
@@ -20,7 +21,7 @@ export default function QuickRepliesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingReply, setEditingReply] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newReply, setNewReply] = useState({ shortcut: '', title: '', body: '', is_active: true });
+  const [newReply, setNewReply] = useState({ shortcut: '', title: '', body: '', image_url: '', is_active: true });
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredReplies = useMemo(() => {
@@ -52,7 +53,7 @@ export default function QuickRepliesPage() {
       toast.success(editingReply ? "Quick reply updated" : "Quick reply added");
       setShowAddModal(false);
       setEditingReply(null);
-      setNewReply({ shortcut: '', title: '', body: '', is_active: true });
+      setNewReply({ shortcut: '', title: '', body: '', image_url: '', is_active: true });
       mutate();
     } catch (e: any) {
       toast.error(e.message || "Failed to save quick reply");
@@ -63,7 +64,7 @@ export default function QuickRepliesPage() {
 
   const handleEdit = (reply: any) => {
     setEditingReply(reply);
-    setNewReply({ shortcut: reply.shortcut, title: reply.title, body: reply.body, is_active: reply.is_active });
+    setNewReply({ shortcut: reply.shortcut, title: reply.title, body: reply.body, image_url: reply.image_url || '', is_active: reply.is_active });
     setShowAddModal(true);
   };
 
@@ -103,7 +104,7 @@ export default function QuickRepliesPage() {
 
   const openAddModal = () => {
     setEditingReply(null);
-    setNewReply({ shortcut: '', title: '', body: '', is_active: true });
+    setNewReply({ shortcut: '', title: '', body: '', image_url: '', is_active: true });
     setShowAddModal(true);
   };
 
@@ -116,10 +117,9 @@ export default function QuickRepliesPage() {
         </div>
         <button 
           onClick={openAddModal}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 shadow-sm"
+          className="px-4 py-2 bg-[#2b3890] hover:bg-[#20296b] text-white rounded-lg transition-colors font-medium flex items-center gap-2 shadow-sm"
         >
-          <Plus className="w-5 h-5" />
-          Add Reply
+          <Plus className="w-5 h-5" /> Add Reply
         </button>
       </div>
 
@@ -137,15 +137,16 @@ export default function QuickRepliesPage() {
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-bold text-lg text-slate-900">{editingReply ? 'Edit Quick Reply' : 'Add Quick Reply'}</h3>
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-slate-100">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-900">{editingReply ? 'Edit Quick Reply' : 'Add Quick Reply'}</h2>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Shortcut</label>
                 <input 
@@ -179,11 +180,50 @@ export default function QuickRepliesPage() {
                   onChange={e => setNewReply({...newReply, body: e.target.value})}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Sawir (Upload Image)</label>
+                {newReply.image_url ? (
+                  <div className="relative w-full h-32 bg-slate-100 rounded-lg border border-slate-200 overflow-hidden flex items-center justify-center group">
+                    <img src={newReply.image_url} alt="Preview" className="h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setNewReply({ ...newReply, image_url: '' })}
+                      className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-md"
+                      title="Ka bixi sawirka"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-slate-300 hover:border-[#2b3890] bg-slate-50 hover:bg-slate-100/50 rounded-lg cursor-pointer transition-colors p-4">
+                    <div className="flex flex-col items-center justify-center text-center">
+                      <ImageIcon className="w-8 h-8 text-slate-400 mb-2" />
+                      <p className="text-xs font-semibold text-slate-700">Geli sawir (Doorho Sawir / Upload)</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, WEBP ama GIF</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            setNewReply({ ...newReply, image_url: event.target?.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
               <div className="pt-4 flex gap-3 justify-end">
                 <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">
                   Cancel
                 </button>
-                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50">
+                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-[#2b3890] text-white rounded-lg hover:bg-[#20296b] font-medium transition-colors disabled:opacity-50">
                   {isSubmitting ? 'Saving...' : (editingReply ? 'Update Reply' : 'Save Reply')}
                 </button>
               </div>
@@ -203,44 +243,47 @@ export default function QuickRepliesPage() {
           description={searchQuery ? "Try a different search term." : "Create shortcuts for frequently used messages."}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4">
           {filteredReplies.map((reply: any) => (
-            <div key={reply.id} className={`bg-white border ${reply.is_active ? 'border-slate-200' : 'border-slate-200 opacity-60'} rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col group relative`}>
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-700 text-sm font-mono rounded-lg border border-slate-200">
-                    {reply.shortcut}
-                  </span>
-                  <h3 className="font-bold text-slate-900 mt-3">{reply.title}</h3>
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => handleToggleActive(reply)}
-                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    title={reply.is_active ? "Disable" : "Enable"}
-                  >
-                    {reply.is_active ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
-                  </button>
-                  <button 
-                    onClick={() => handleEdit(reply)}
-                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(reply.id)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+            <div key={reply.id} className={`bg-white border ${reply.is_active ? 'border-slate-200' : 'border-slate-200 opacity-60'} rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between group relative`}>
+              <div className="flex gap-4 items-center flex-1 min-w-0">
+                {reply.image_url && (
+                  <img src={reply.image_url} alt="Reply Media" className="w-16 h-16 rounded-lg object-cover border border-slate-200 shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-block px-2.5 py-0.5 bg-[#2b3890]/10 text-[#2b3890] text-xs font-mono font-bold rounded-md">
+                      {reply.shortcut}
+                    </span>
+                    <h3 className="font-bold text-slate-900 text-sm truncate">{reply.title}</h3>
+                  </div>
+                  <p className="text-slate-600 text-xs line-clamp-2 whitespace-pre-wrap">{reply.body}</p>
                 </div>
               </div>
-              <p className="text-slate-600 text-sm flex-1 whitespace-pre-wrap">{reply.body}</p>
-              {!reply.is_active && (
-                <div className="absolute top-4 right-4 bg-slate-100 text-slate-500 text-xs px-2 py-1 rounded font-medium">
-                  Disabled
-                </div>
-              )}
+              
+              <div className="flex items-center gap-2 shrink-0">
+                <button 
+                  onClick={() => handleToggleActive(reply)}
+                  className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title={reply.is_active ? "Disable" : "Enable"}
+                >
+                  {reply.is_active ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <XCircle className="w-5 h-5 text-slate-400" />}
+                </button>
+                <button 
+                  onClick={() => handleEdit(reply)}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Edit"
+                >
+                  <Edit className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={() => handleDelete(reply.id)}
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
